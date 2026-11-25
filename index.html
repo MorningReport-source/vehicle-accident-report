@@ -1,0 +1,1354 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vehicle Accident Report | Herzog S&amp;C</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚆</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<!--
+  VEHICLE ACCIDENT REPORT  —  S&C Field Reporting Tool (MS289-22)
+  Self-contained page for Netlify, backed by Supabase (same project as the
+  Non Vehicle Equipment Incident Report). Run supabase_setup.sql once first.
+
+  CONFIG block is at the top of the second <script>: notify list, subdivisions,
+  dropdown options, file limits.
+-->
+<style>
+  :root {
+    --bg: #E6E9EB;
+    --surface: #FFFFFF;
+    --field: #F5F6F7;
+    --ink: #23292D;
+    --muted: #56636E;
+    --line: #C6CDD3;
+    /* Metrolink palette: teal wordmark, light-teal swoosh, charcoal train nose */
+    --brand: #00686B;
+    --brand-dark: #23292D;
+    --accent: #00686B;
+    --accent-ink: #FFFFFF;
+    --accent-light: #3FA6A3;
+    --tint: #E3F1F0;
+    --stop: #B3302A;
+    --clear: #2B7849;
+    --font: "Barlow", "Segoe UI", system-ui, -apple-system, sans-serif;
+    --cond: "Barlow Condensed", "Arial Narrow", "Segoe UI", sans-serif;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12181D;
+      --surface: #1B232A;
+      --field: #141B21;
+      --ink: #E6EBEE;
+      --muted: #9AA7B1;
+      --line: #34414B;
+      --stop: #E86A61;
+      --tint: #16393A;
+      --accent: #2E9C9C;
+      --rv-h3: #6CC3BF;
+      --clear: #5DC38B;
+      color-scheme: dark;
+    }
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font-family: var(--font); font-size: 17px; line-height: 1.45;
+    -webkit-text-size-adjust: 100%;
+  }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  a { color: inherit; }
+  :focus-visible { outline: 3px solid var(--accent-light); outline-offset: 2px; }
+
+  /* ---- masthead ---- */
+  .mast { background: var(--brand-dark); color: #F1F3F4; border-bottom: 4px solid var(--brand); }
+  .mast-in { max-width: 780px; margin: 0 auto; padding: 22px 20px 0; }
+  .mast h1 {
+    font-family: var(--cond); font-weight: 700; font-size: clamp(2.1rem, 7vw, 3.1rem);
+    line-height: .95; margin: 0; letter-spacing: -.01em;
+  }
+  .mast p { margin: 6px 0 0; color: #B8C3C6; font-size: .95rem; }
+  .tabs { display: flex; gap: 4px; margin-top: 18px; }
+  .tab {
+    border: 0; background: transparent; color: #AEB9C2; cursor: pointer;
+    padding: 10px 14px 12px; font-weight: 600; border-radius: 6px 6px 0 0;
+  }
+  .tab[aria-selected="true"] { background: var(--bg); color: var(--ink); }
+
+  /* ---- 24-hour deadline strip: the one loud element ---- */
+  .deadline {
+    background: var(--brand); color: #fff;
+    border-bottom: 3px solid #004B4E;
+  }
+  .deadline-in {
+    max-width: 780px; margin: 0 auto; padding: 12px 20px;
+    display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px;
+  }
+  .deadline strong { font-family: var(--cond); font-size: 1.35rem; font-weight: 700; }
+  .deadline span { font-size: .95rem; }
+  .deadline.late { background: var(--stop); color: #fff; border-bottom-color: #5a1612; }
+
+  main { max-width: 780px; margin: 0 auto; padding: 20px 16px 80px; }
+
+  /* ---- form ---- */
+  fieldset {
+    border: 0; margin: 0 0 18px; padding: 18px 18px 6px;
+    background: var(--surface); border-radius: 8px;
+    border-left: 6px solid var(--brand);
+  }
+  @media (prefers-color-scheme: dark) { fieldset { border-left-color: var(--accent-light); } }
+  legend {
+    float: left; width: 100%; padding: 0; margin: 0 0 4px;
+    font-family: var(--cond); font-weight: 700; font-size: 1.45rem; line-height: 1.1;
+  }
+  legend + * { clear: both; }
+  .hint { color: var(--muted); font-size: .92rem; margin: 0 0 12px; }
+  .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 14px; }
+  .grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .full { grid-column: 1 / -1; }
+  @media (max-width: 560px) {
+    .grid, .grid.three { grid-template-columns: minmax(0, 1fr); }
+  }
+  .f { display: block; margin-bottom: 14px; min-width: 0; }
+  .f > span { display: block; font-weight: 600; font-size: .93rem; margin-bottom: 5px; }
+  .f > span i { font-style: normal; color: var(--stop); margin-left: 2px; }
+  input[type=text], input[type=tel], input[type=date], input[type=time], input[type=number],
+  input[type=email], input[type=password], select, textarea {
+    width: 100%; min-height: 46px; padding: 10px 12px;
+    background: var(--field); border: 1.5px solid var(--line); border-radius: 6px;
+  }
+  textarea { min-height: 96px; resize: vertical; }
+  input:focus, select:focus, textarea:focus { border-color: var(--brand); outline: none; box-shadow: 0 0 0 3px rgba(63,166,163,.45); }
+  .bad input, .bad select, .bad textarea, .bad .choices { border-color: var(--stop) !important; }
+  .err { color: var(--stop); font-size: .88rem; margin-top: 4px; display: none; }
+  .bad .err { display: block; }
+
+  .choices { display: flex; flex-wrap: wrap; gap: 8px; border: 1.5px solid transparent; border-radius: 8px; }
+  .choice { position: relative; }
+  .choice input { position: absolute; opacity: 0; inset: 0; cursor: pointer; }
+  .choice label {
+    display: inline-block; padding: 10px 16px; min-height: 46px; border-radius: 6px; cursor: pointer;
+    border: 1.5px solid var(--line); background: var(--field); font-weight: 600;
+  }
+  .choice input:checked + label { background: var(--brand); color: #fff; border-color: var(--brand); }
+  @media (prefers-color-scheme: dark) { .choice input:checked + label { background: var(--brand); color: #fff; border-color: var(--accent-light); } }
+  .choice input:focus-visible + label { outline: 3px solid var(--accent-light); outline-offset: 2px; }
+  .check { display: flex; gap: 10px; align-items: center; margin: 2px 0 14px; font-weight: 600; cursor: pointer; }
+  .check input { width: 22px; height: 22px; accent-color: var(--brand); }
+
+  .sub { border-top: 1px dashed var(--line); padding-top: 14px; margin-top: 2px; }
+  .gpsrow { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: -4px 0 14px; }
+  .gpsrow small { color: var(--muted); }
+
+  /* ---- buttons ---- */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    min-height: 46px; padding: 10px 18px; border-radius: 6px; cursor: pointer;
+    border: 1.5px solid var(--line); background: var(--surface); font-weight: 600; text-decoration: none;
+  }
+  .btn.primary { background: var(--brand); color: #fff; border-color: var(--brand); }
+  .btn.go { background: var(--brand); color: #fff; border-color: var(--brand); }
+  .btn.go:hover, .btn.primary:hover { background: #00585B; }
+  .btn.danger { color: var(--stop); border-color: var(--stop); background: transparent; }
+  .btn:disabled { opacity: .55; cursor: wait; }
+  .btn.big { width: 100%; min-height: 58px; font-size: 1.15rem; font-family: var(--cond); font-weight: 700; letter-spacing: .01em; }
+  @media (prefers-color-scheme: dark) { .btn.primary { border-color: var(--accent-light); } .btn.go { border-color: var(--accent-light); } }
+
+  /* ---- files ---- */
+  .drop {
+    display: block; border: 2px dashed var(--line); border-radius: 8px; padding: 22px 16px;
+    text-align: center; cursor: pointer; background: var(--field); margin-bottom: 12px;
+  }
+  .drop.over { border-color: var(--accent-light); background: var(--tint); }
+  .drop b { display: block; font-size: 1.05rem; }
+  .drop small { color: var(--muted); }
+  .drop input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+  .files { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; margin-bottom: 14px; }
+  .file { position: relative; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--field); }
+  .file .thumb { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; font-family: var(--cond); font-weight: 700; font-size: 1.3rem; color: var(--muted); }
+  .file img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .file .nm { font-size: .78rem; padding: 4px 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .file.removing { opacity: .45; outline: 2px solid var(--stop); }
+  .file .tag { position: absolute; left: 4px; top: 4px; background: var(--stop); color: #fff; font-size: .72rem; font-weight: 600; padding: 1px 6px; border-radius: 3px; }
+  .file .tag.new { background: var(--clear); }
+  .file button {
+    position: absolute; top: 4px; right: 4px; width: 30px; height: 30px; border-radius: 50%;
+    border: 0; background: rgba(35,41,45,.85); color: #fff; cursor: pointer; font-size: 1rem; line-height: 1;
+  }
+
+  .submitbar { margin-top: 8px; }
+  .progress { margin-top: 10px; color: var(--muted); font-size: .95rem; min-height: 1.4em; }
+  .banner { padding: 12px 14px; border-radius: 6px; margin-bottom: 14px; display: none; }
+  .banner.show { display: block; }
+  .banner.bad { background: rgba(179,48,42,.12); border: 1.5px solid var(--stop); }
+
+  /* ---- done ---- */
+  .done { background: var(--surface); border-radius: 8px; padding: 26px 22px; border-left: 6px solid var(--clear); }
+  .done h2 { font-family: var(--cond); font-size: 2rem; margin: 0 0 4px; line-height: 1; }
+  .done .rid { font-family: var(--cond); font-size: 1.3rem; color: var(--muted); margin-bottom: 16px; }
+  .done ol { padding-left: 1.3em; margin: 0 0 18px; }
+  .done li { margin-bottom: 8px; }
+  .row { display: flex; flex-wrap: wrap; gap: 10px; }
+
+  /* ---- admin ---- */
+  .panel { background: var(--surface); border-radius: 8px; padding: 18px; margin-bottom: 16px; }
+  .panel h2 { font-family: var(--cond); font-size: 1.6rem; margin: 0 0 10px; }
+  .kpis { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 10px; margin-bottom: 16px; }
+  @media (max-width: 560px) { .kpis { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+  .kpi { background: var(--surface); border-radius: 8px; padding: 12px 14px; }
+  .kpi b { display: block; font-family: var(--cond); font-size: 2rem; line-height: 1; }
+  .kpi span { color: var(--muted); font-size: .9rem; }
+  .tools { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
+  .tools input, .tools select { width: auto; flex: 1 1 180px; }
+  .tablewrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: .93rem; }
+  th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; white-space: nowrap; }
+  .tablewrap tbody tr { cursor: pointer; }
+  .tablewrap tbody tr:hover { background: var(--field); }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-weight: 600; font-size: .8rem; }
+  .badge.open { background: var(--tint); color: var(--brand); border: 1px solid var(--accent-light); }
+  .badge.closed { background: var(--line); color: var(--ink); }
+  .empty { color: var(--muted); padding: 20px 4px; }
+
+  .modal-bg { position: fixed; inset: 0; background: rgba(10,14,18,.6); display: none; align-items: flex-start; justify-content: center; overflow-y: auto; padding: 20px 10px; z-index: 20; }
+  .modal { background: var(--surface); border-radius: 10px; width: 100%; max-width: 760px; padding: 20px; }
+  .modal h3 { font-family: var(--cond); font-size: 1.6rem; margin: 0; }
+  .modal h4 { font-family: var(--cond); font-size: 1.2rem; margin: 18px 0 6px; padding-top: 10px; border-top: 1px solid var(--line); }
+  .dl { display: grid; grid-template-columns: 170px minmax(0,1fr); gap: 4px 12px; font-size: .95rem; }
+  .dl dt { color: var(--muted); }
+  .dl dd { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+  @media (max-width: 560px) { .dl { grid-template-columns: minmax(0,1fr); } .dl dd { margin-bottom: 6px; } }
+  .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px,1fr)); gap: 10px; }
+  .gallery a { display: block; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; text-decoration: none; background: var(--field); }
+  .gallery img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; }
+  .gallery .doc { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; font-family: var(--cond); font-weight: 700; font-size: 1.4rem; color: var(--muted); }
+  .gallery span { display: block; font-size: .78rem; padding: 4px 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mhead { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+  .x { border: 0; background: transparent; font-size: 1.7rem; cursor: pointer; line-height: 1; padding: 0 4px; }
+
+  /* ---- professional report view ---- */
+  .rv { background: var(--surface); border-radius: 8px; overflow: hidden; color: var(--ink); }
+  .rv-head { background: var(--brand-dark); color: #fff; padding: 18px 22px; display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; border-bottom: 5px solid var(--brand); }
+  .rv-head h2 { font-family: var(--cond); font-weight: 700; font-size: 2rem; margin: 0; line-height: 1; }
+  .rv-head .id { color: #C9D1D7; margin-top: 6px; font-size: 1rem; }
+  .rv-meta { text-align: right; font-size: .9rem; color: #C9D1D7; }
+  .rv-meta b { color: #fff; }
+  .rv-sum { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-bottom: 1px solid var(--line); }
+  .rv-sum div { padding: 12px 16px; border-right: 1px solid var(--line); }
+  .rv-sum div:last-child { border-right: 0; }
+  .rv-sum small { display: block; color: var(--muted); font-size: .8rem; margin-bottom: 2px; }
+  .rv-sum b { font-size: 1rem; }
+  .rv-sum .warn { color: var(--stop); }
+  .rv-body { padding: 4px 22px 22px; }
+  .rv h3 { font-family: var(--cond); font-weight: 700; font-size: 1.3rem; margin: 22px 0 6px; padding-bottom: 4px; border-bottom: 2px solid var(--accent-light); color: var(--rv-h3, var(--brand)); break-after: avoid; }
+  .rv-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 28px; margin: 0; }
+  .rv-item { display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--line); break-inside: avoid; }
+  .rv-item.wide { grid-column: 1 / -1; }
+  .rv-item dt { color: var(--muted); font-size: .88rem; }
+  .rv-item dd { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .rv-photos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 10px; }
+  .rv-photos figure { margin: 0; break-inside: avoid; }
+  .rv-photos img { width: 100%; height: 300px; object-fit: contain; background: var(--field); border: 1px solid var(--line); border-radius: 4px; display: block; }
+  .rv-photos figcaption { font-size: .82rem; color: var(--muted); margin-top: 4px; }
+  .rv-files { margin: 10px 0 0; padding-left: 1.2em; }
+  .rv-foot { font-size: .8rem; color: var(--muted); padding: 12px 22px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  @media (max-width: 560px) {
+    .rv-sum { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .rv-sum div:nth-child(2) { border-right: 0; }
+    .rv-sum div:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
+    .rv-grid, .rv-photos { grid-template-columns: minmax(0, 1fr); }
+    .rv-item { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+    .rv-meta { text-align: left; }
+  }
+
+  /* ---- track changes ---- */
+  .rv-hist { list-style: none; padding: 0; margin: 8px 0 0; }
+  .rv-hist li { border-left: 3px solid var(--accent-light); padding: 4px 0 6px 12px; margin-bottom: 14px; break-inside: avoid; }
+  .rv-hist-head { font-size: .93rem; }
+  .rv-hist-note { margin: 2px 0 6px; font-style: italic; }
+  .rv-chg { width: 100%; border-collapse: collapse; font-size: .9rem; margin-top: 4px; }
+  .rv-chg td { padding: 5px 6px; border-bottom: 1px solid var(--line); vertical-align: top; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .rv-chg td:first-child { color: var(--muted); width: 140px; padding-left: 0; }
+  .rv del { color: var(--stop); text-decoration: line-through; background: rgba(179,48,42,.08); }
+  .rv ins { color: var(--clear); text-decoration: none; background: rgba(43,120,73,.10); font-weight: 600; }
+  .rv-edited { display: inline-block; margin-top: 4px; background: var(--accent-light); color: #fff; font-size: .78rem; font-weight: 600; padding: 1px 7px; border-radius: 3px; }
+  @media (max-width: 560px) { .rv-chg td:first-child { width: 100px; } }
+
+  .toast { border: 2px solid var(--accent-light); position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); background: var(--brand-dark); color: #fff; padding: 12px 18px; border-radius: 8px; z-index: 40; display: none; max-width: 92vw; }
+
+  /* ---- print: Metrolink-format report only ---- */
+  #printArea { display: none; }
+  @media print {
+    body { background: #fff; color: #000; font-size: 11pt; }
+    body > *:not(#printArea) { display: none !important; }
+    #printArea { display: block; }
+    :root { --surface: #fff; --field: #f3f4f5; --ink: #000; --muted: #4a4a4a; --line: #c4c4c4; --stop: #B3302A; --rv-h3: #00686B; --tint: #E3F1F0; }
+    #printArea .rv { border-radius: 0; }
+    #printArea .rv-head, #printArea .rv-sum, #printArea .rv h3 { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    #printArea .rv-photos img { height: 260px; }
+    #printArea del, #printArea ins, #printArea .rv-edited { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    @page { margin: 0.5in; }
+    .p-head { display: flex; justify-content: space-between; border-bottom: 2px solid #000; padding-bottom: 6px; margin-bottom: 8px; }
+    .p-head h1 { font-size: 18pt; margin: 0; }
+    .p-sec { font-weight: 700; font-size: 11pt; margin: 10px 0 3px; border-bottom: 1px solid #000; }
+    .p-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px 14px; }
+    .p-grid div { border-bottom: 1px solid #999; padding: 2px 0; min-height: 1.4em; }
+    .p-grid .w2 { grid-column: span 2; } .p-grid .w3 { grid-column: span 3; white-space: pre-wrap; }
+    .p-grid small { color: #444; margin-right: 6px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<header class="mast">
+  <div class="mast-in">
+    <h1>Vehicle accident report</h1>
+    <p>Herzog Signal &amp; Communications, Metrolink contract MS289-22</p>
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" id="tabFile" aria-selected="true">File a report</button>
+      <button class="tab" role="tab" id="tabAdmin" aria-selected="false">Reports (admin)</button>
+    </div>
+  </div>
+</header>
+
+<div class="deadline" id="deadline">
+  <div class="deadline-in">
+    <strong id="dlMain">Report within 24 hours</strong>
+    <span id="dlSub">Metrolink requires this report within 24 hours of the accident.</span>
+  </div>
+</div>
+
+<!-- ================= FILE A REPORT ================= -->
+<main id="fileView">
+  <div class="banner bad" id="formError"></div>
+  <form id="form" novalidate>
+
+    <fieldset>
+      <legend>Who's reporting</legend>
+      <p class="hint">Fields marked <span style="color:var(--stop)">*</span> are required.</p>
+      <div class="grid">
+        <label class="f"><span>Your name<i>*</i></span><input type="text" name="reporterName" data-req autocomplete="name"><div class="err">Enter your name.</div></label>
+        <label class="f"><span>Your phone<i>*</i></span><input type="tel" name="reporterPhone" data-req autocomplete="tel"><div class="err">Enter a phone number.</div></label>
+        <label class="f"><span>Subdivision<i>*</i></span><select name="subdivision" data-req id="subSel"></select><div class="err">Pick a subdivision.</div></label>
+        <label class="f"><span>Your supervisor<i>*</i></span><input type="text" name="supervisor" data-req><div class="err">Enter your supervisor.</div></label>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>The accident</legend>
+      <div class="grid">
+        <label class="f"><span>Date<i>*</i></span><input type="date" name="date" data-req id="fDate"><div class="err">Enter the date.</div></label>
+        <label class="f"><span>Time<i>*</i></span><input type="time" name="time" data-req id="fTime"><div class="err">Enter the time.</div></label>
+        <label class="f"><span>Visibility<i>*</i></span><select name="visibility" data-req id="visSel"></select><div class="err">Pick visibility.</div></label>
+        <label class="f"><span>Road surface<i>*</i></span><select name="road" data-req id="roadSel"></select><div class="err">Pick road surface.</div></label>
+        <label class="f full"><span>Location<i>*</i></span><input type="text" name="location" data-req placeholder="Street and cross street, MP, CP, or yard"><div class="err">Enter where it happened.</div></label>
+      </div>
+      <div class="gpsrow">
+        <button type="button" class="btn" id="gpsBtn">Add my GPS location</button>
+        <small id="gpsOut">Use this if you're still at the scene.</small>
+        <input type="hidden" name="gps" id="gpsVal">
+      </div>
+      <label class="f"><span>What happened<i>*</i></span><textarea name="description" data-req rows="5" placeholder="Direction of travel, speed, what each vehicle was doing, point of impact"></textarea><div class="err">Describe what happened.</div></label>
+      <div class="f" data-group="injuries"><span>Anyone hurt?<i>*</i></span>
+        <div class="choices">
+          <div class="choice"><input type="radio" name="injuries" id="inj0" value="No"><label for="inj0">No</label></div>
+          <div class="choice"><input type="radio" name="injuries" id="inj1" value="Yes"><label for="inj1">Yes</label></div>
+        </div><div class="err">Choose yes or no.</div>
+      </div>
+      <label class="f" id="injWrap" hidden><span>Who was hurt and how<i>*</i></span><textarea name="injuryDetails" data-req rows="3"></textarea><div class="err">Describe the injuries.</div></label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Police report</legend>
+      <div class="f" data-group="police"><span>Was a police report taken?<i>*</i></span>
+        <div class="choices">
+          <div class="choice"><input type="radio" name="police" id="pol1" value="Yes"><label for="pol1">Yes</label></div>
+          <div class="choice"><input type="radio" name="police" id="pol0" value="No"><label for="pol0">No</label></div>
+        </div><div class="err">Choose yes or no.</div>
+      </div>
+      <div class="grid sub" id="polWrap" hidden>
+        <label class="f"><span>Officer's name<i>*</i></span><input type="text" name="officer" data-req><div class="err">Enter the officer's name.</div></label>
+        <label class="f"><span>Agency / jurisdiction<i>*</i></span><input type="text" name="jurisdiction" data-req placeholder="e.g. CHP, LASD, Fontana PD"><div class="err">Enter the agency.</div></label>
+        <label class="f"><span>Badge number<i>*</i></span><input type="text" name="badge" data-req><div class="err">Enter the badge number.</div></label>
+        <label class="f"><span>Report number<i>*</i></span><input type="text" name="reportNo" data-req><div class="err">Enter the report number.</div></label>
+      </div>
+      <label class="f"><span id="polNotesLbl">Police notes</span><textarea name="policeNotes" id="polNotes" rows="3" placeholder="e.g. Police called at 2:15 PM, did not show up. Officer gave a card but no report number yet."></textarea><div class="err">Explain why no police report was taken.</div></label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Your vehicle</legend>
+      <label class="check"><input type="checkbox" name="sameDriver" id="sameDriver" checked> I was the driver</label>
+      <div class="grid" id="driverWrap" hidden>
+        <label class="f"><span>Driver's name<i>*</i></span><input type="text" name="driverName" data-req><div class="err">Enter the driver's name.</div></label>
+        <label class="f"><span>Driver's phone</span><input type="tel" name="driverPhone"></label>
+      </div>
+      <div class="grid">
+        <label class="f"><span>Driver's license no.</span><input type="text" name="driverLic" autocomplete="off"></label>
+        <label class="f"><span>Driver's date of birth</span><input type="date" name="driverDob"></label>
+      </div>
+      <div class="grid three">
+        <label class="f"><span>Unit / fleet no.</span><input type="text" name="unitNo"></label>
+        <label class="f"><span>Year<i>*</i></span><input type="text" name="year" data-req inputmode="numeric" maxlength="4"><div class="err">Enter the year.</div></label>
+        <label class="f"><span>Make<i>*</i></span><input type="text" name="make" data-req><div class="err">Enter the make.</div></label>
+        <label class="f"><span>Model<i>*</i></span><input type="text" name="model" data-req><div class="err">Enter the model.</div></label>
+        <label class="f"><span>License plate<i>*</i></span><input type="text" name="plate" data-req autocapitalize="characters"><div class="err">Enter the plate.</div></label>
+        <label class="f"><span>Odometer</span><input type="text" name="odometer" inputmode="numeric"></label>
+        <label class="f full"><span>VIN</span><input type="text" name="vin" autocapitalize="characters" maxlength="17"></label>
+      </div>
+      <label class="f"><span>Damage to your vehicle</span><textarea name="ourDamage" rows="3" placeholder="Front bumper, driver door, hi-rail gear, etc."></textarea></label>
+      <div class="grid">
+        <label class="f"><span>Passengers in your vehicle</span><input type="number" name="passengers" min="0" max="9" value="0"></label>
+      </div>
+      <label class="f" id="paxWrap" hidden><span>Passenger names and addresses</span><textarea name="passengerList" rows="3"></textarea></label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Other vehicle or pedestrian</legend>
+      <div class="f" data-group="partyType"><span>Who else was involved?<i>*</i></span>
+        <div class="choices">
+          <div class="choice"><input type="radio" name="partyType" id="pt1" value="Other vehicle"><label for="pt1">Other vehicle</label></div>
+          <div class="choice"><input type="radio" name="partyType" id="pt2" value="Pedestrian"><label for="pt2">Pedestrian</label></div>
+          <div class="choice"><input type="radio" name="partyType" id="pt0" value="None"><label for="pt0">No one else (fixed object, single vehicle)</label></div>
+        </div><div class="err">Choose one.</div>
+      </div>
+      <div id="partyWrap" class="sub" hidden>
+        <div class="grid">
+          <label class="f"><span id="opNameLbl">Driver's name</span><input type="text" name="opName"></label>
+          <label class="f"><span>Phone</span><input type="tel" name="opPhone"></label>
+          <label class="f"><span>Driver's license no. / state</span><input type="text" name="opLic" autocomplete="off"></label>
+          <label class="f"><span>Date of birth</span><input type="date" name="opDob"></label>
+          <label class="f full"><span>Address</span><input type="text" name="opAddress"></label>
+        </div>
+        <div id="opVehWrap">
+          <div class="grid three">
+            <label class="f"><span>Year</span><input type="text" name="opYear" inputmode="numeric" maxlength="4"></label>
+            <label class="f"><span>Make</span><input type="text" name="opMake"></label>
+            <label class="f"><span>Model</span><input type="text" name="opModel"></label>
+            <label class="f"><span>License plate</span><input type="text" name="opPlate" autocapitalize="characters"></label>
+            <label class="f"><span>State issuing</span><input type="text" name="opPlateState" maxlength="2" autocapitalize="characters"></label>
+            <label class="f"><span>VIN</span><input type="text" name="opVin" autocapitalize="characters" maxlength="17"></label>
+          </div>
+          <div class="grid">
+            <label class="f"><span>Insured by</span><input type="text" name="opInsurer"></label>
+            <label class="f"><span>Policy no.</span><input type="text" name="opPolicy"></label>
+            <label class="f full"><span>Vehicle owner's name and address (if not the driver)</span><input type="text" name="opOwner"></label>
+            <label class="f"><span>Passengers in their vehicle</span><input type="number" name="opPassengers" min="0" max="20" value="0"></label>
+          </div>
+          <label class="f"><span>Their passengers' names and addresses</span><textarea name="opPassengerList" rows="2"></textarea></label>
+          <label class="f"><span>Damage to their vehicle</span><textarea name="opDamage" rows="2"></textarea></label>
+        </div>
+        <p class="hint">Snap a photo of their license, registration, and insurance card and add it below. That fills in anything you miss here.</p>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Witnesses</legend>
+      <label class="f"><span>Names and phone numbers</span><textarea name="witnesses" rows="3"></textarea></label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Photos and files</legend>
+      <p class="hint">Damage to both vehicles, the scene, plates, the other driver's license and insurance card, and the police report slip.</p>
+      <label class="drop" id="drop">
+        <b>Add photos or files</b>
+        <small>Tap to take a photo or choose files. Up to <span id="maxFilesTxt"></span> files, <span id="maxMbTxt"></span> MB each.</small>
+        <input type="file" id="fileInput" multiple accept="image/*,video/*,.pdf,.doc,.docx,.heic,.heif">
+      </label>
+      <div class="files" id="fileList"></div>
+    </fieldset>
+
+    <div class="submitbar">
+      <button type="submit" class="btn big go" id="submitBtn">Submit report</button>
+      <div class="progress" id="progress" aria-live="polite"></div>
+    </div>
+  </form>
+</main>
+
+<!-- ================= DONE ================= -->
+<main id="doneView" hidden>
+  <div class="done">
+    <h2>Report saved</h2>
+    <div class="rid" id="doneId"></div>
+    <p><b>One more step: send the email.</b> Saving the report does not notify anyone by itself.</p>
+    <ol>
+      <li>Outlook (or your email app) should have opened with a message already addressed and filled in.</li>
+      <li>Press <b>Send</b> in that email.</li>
+      <li>If no email opened, tap <b>Open notification email</b> below.</li>
+    </ol>
+    <div class="row">
+      <a class="btn primary" id="mailBtn" href="#">Open notification email</a>
+      <button class="btn" id="againBtn" type="button">File another report</button>
+    </div>
+  </div>
+</main>
+
+<!-- ================= ADMIN ================= -->
+<main id="adminView" hidden></main>
+
+<div class="modal-bg" id="modalBg"><div class="modal" id="modal" role="dialog" aria-modal="true"></div></div>
+<div class="toast" id="toast" role="status"></div>
+<div id="printArea"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script>
+(function () {
+  // ===================== CONFIG (edit these) =====================
+  const NOTIFY = [
+    "progers@herzog.com",
+    "mmoore@herzog.com",
+    "egarcia@herzog.com",
+    "aahumada@herzog.com"
+  ];
+  const SUBDIVISIONS = [
+    "Ventura", "Montalvo", "Valley", "River", "San Gabriel", "Pasadena",
+    "Orange", "Olive", "Perris Valley", "Redlands", "Yard / facility", "Other"
+  ];
+  const VISIBILITY = ["Clear daylight", "Overcast", "Rain", "Fog / haze", "Dawn / dusk", "Dark, street lit", "Dark, unlit"];
+  const ROAD = ["Dry", "Wet", "Gravel / dirt", "Mud", "Construction zone", "Rail / crossing surface", "Other"];
+  const MAX_FILES = 15;
+  const MAX_FILE_MB = 25;
+  const TABLE = "vehicle_accident_reports";
+  const BUCKET = "accident-files";
+  const SUPABASE_URL = "https://mphsompvkyznpyhuyvkv.supabase.co";
+  const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1waHNvbXB2a3l6bnB5aHV5dmt2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEwMzQ2MDMsImV4cCI6MjA5NjYxMDYwM30.6YGl1X7LKkQfg-tHHS4tGk7hauY7hdyp1FIhaxuhl18";
+  // ===============================================================
+
+  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  const $ = (id) => document.getElementById(id);
+  const form = $('form');
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const pad = (n) => String(n).padStart(2, '0');
+
+  function toast(msg, ms) {
+    const t = $('toast'); t.textContent = msg; t.style.display = 'block';
+    clearTimeout(toast._t); toast._t = setTimeout(() => { t.style.display = 'none'; }, ms || 3200);
+  }
+
+  // ---------- dropdowns ----------
+  function fillSelect(el, list) {
+    el.innerHTML = '<option value="">Choose…</option>' + list.map(v => `<option>${esc(v)}</option>`).join('');
+  }
+  fillSelect($('subSel'), SUBDIVISIONS);
+  fillSelect($('visSel'), VISIBILITY);
+  fillSelect($('roadSel'), ROAD);
+  $('maxFilesTxt').textContent = MAX_FILES;
+  $('maxMbTxt').textContent = MAX_FILE_MB;
+
+  function setNow() {
+    const d = new Date();
+    $('fDate').value = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+    $('fTime').value = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+  setNow();
+
+  // ---------- 24-hour deadline strip ----------
+  function updateDeadline() {
+    const dv = $('fDate').value, tv = $('fTime').value;
+    const box = $('deadline');
+    if (!dv || !tv) { box.classList.remove('late'); $('dlMain').textContent = 'Report within 24 hours'; $('dlSub').textContent = 'Metrolink requires this report within 24 hours of the accident.'; return; }
+    const at = new Date(`${dv}T${tv}`);
+    const due = new Date(at.getTime() + 24 * 3600 * 1000);
+    const left = due - new Date();
+    const dueTxt = due.toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    if (left < 0) {
+      box.classList.add('late');
+      $('dlMain').textContent = 'Past the 24-hour window';
+      $('dlSub').textContent = `It was due ${dueTxt}. File it now anyway.`;
+    } else {
+      box.classList.remove('late');
+      const h = Math.floor(left / 3600000), m = Math.floor((left % 3600000) / 60000);
+      $('dlMain').textContent = `Due by ${dueTxt}`;
+      $('dlSub').textContent = `${h} h ${m} min left in the 24-hour window.`;
+    }
+  }
+  $('fDate').addEventListener('input', updateDeadline);
+  $('fTime').addEventListener('input', updateDeadline);
+  setInterval(updateDeadline, 60000);
+  updateDeadline();
+
+  // ---------- conditional sections ----------
+  function radioVal(name) { const r = form.querySelector(`input[name="${name}"]:checked`); return r ? r.value : ''; }
+  function syncConditionals() {
+    $('injWrap').hidden = radioVal('injuries') !== 'Yes';
+    $('polWrap').hidden = radioVal('police') !== 'Yes';
+    const noPol = radioVal('police') === 'No';
+    if (noPol) $('polNotes').setAttribute('data-req', ''); else { $('polNotes').removeAttribute('data-req'); $('polNotes').closest('.f').classList.remove('bad'); }
+    $('polNotesLbl').innerHTML = noPol ? 'Why no police report? (police called, did not show, etc.)<i>*</i>' : 'Police notes';
+    $('driverWrap').hidden = $('sameDriver').checked;
+    $('paxWrap').hidden = !(parseInt(form.passengers.value, 10) > 0);
+    const pt = radioVal('partyType');
+    $('partyWrap').hidden = !(pt === 'Other vehicle' || pt === 'Pedestrian');
+    $('opVehWrap').hidden = pt !== 'Other vehicle';
+    $('opNameLbl').textContent = pt === 'Pedestrian' ? "Pedestrian's name" : "Driver's name";
+  }
+  form.addEventListener('change', syncConditionals);
+  form.addEventListener('input', (e) => {
+    if (e.target.name === 'passengers') syncConditionals();
+    const f = e.target.closest('.f'); if (f) f.classList.remove('bad');
+  });
+  form.addEventListener('change', (e) => { const g = e.target.closest('[data-group]'); if (g) g.classList.remove('bad'); });
+  syncConditionals();
+
+  // ---------- GPS ----------
+  $('gpsBtn').addEventListener('click', () => {
+    if (!navigator.geolocation) { $('gpsOut').textContent = 'This device cannot share its location.'; return; }
+    $('gpsOut').textContent = 'Getting your location…';
+    navigator.geolocation.getCurrentPosition((p) => {
+      const v = `${p.coords.latitude.toFixed(5)}, ${p.coords.longitude.toFixed(5)}`;
+      $('gpsVal').value = v;
+      $('gpsOut').innerHTML = `Added: <a target="_blank" rel="noopener" href="https://maps.google.com/?q=${encodeURIComponent(v)}">${esc(v)}</a>`;
+    }, () => { $('gpsOut').textContent = 'Location was blocked or unavailable. Type the location above instead.'; },
+    { enableHighAccuracy: true, timeout: 15000 });
+  });
+
+  // ---------- files ----------
+  let pending = []; // { key, file, preview }
+  let fileKey = 0;
+  function extOf(name) { const m = /\.([a-z0-9]+)$/i.exec(name || ''); return m ? m[1].toUpperCase() : 'FILE'; }
+  function addFiles(list) {
+    let skipped = [];
+    for (const f of list) {
+      if (pending.length >= MAX_FILES) { skipped.push(`${f.name} (limit of ${MAX_FILES} files)`); continue; }
+      if (f.size > MAX_FILE_MB * 1024 * 1024 && !/^image\/(jpeg|png|webp)$/.test(f.type)) { skipped.push(`${f.name} (over ${MAX_FILE_MB} MB)`); continue; }
+      const preview = /^image\/(jpeg|png|webp|gif)$/.test(f.type) ? URL.createObjectURL(f) : null;
+      pending.push({ key: ++fileKey, file: f, preview });
+    }
+    renderFiles();
+    if (skipped.length) toast('Not added: ' + skipped.join(', '), 6000);
+  }
+  function renderFiles() {
+    $('fileList').innerHTML = pending.map(p => `
+      <div class="file">
+        <div class="thumb">${p.preview ? `<img src="${p.preview}" alt="">` : esc(extOf(p.file.name))}</div>
+        <div class="nm">${esc(p.file.name)}</div>
+        <button type="button" data-rm="${p.key}" aria-label="Remove ${esc(p.file.name)}">×</button>
+      </div>`).join('');
+  }
+  $('fileList').addEventListener('click', (e) => {
+    const k = e.target.getAttribute('data-rm'); if (!k) return;
+    const i = pending.findIndex(p => String(p.key) === k);
+    if (i > -1) { if (pending[i].preview) URL.revokeObjectURL(pending[i].preview); pending.splice(i, 1); renderFiles(); }
+  });
+  $('fileInput').addEventListener('change', (e) => { addFiles(e.target.files); e.target.value = ''; });
+  const drop = $('drop');
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('over'); }));
+  drop.addEventListener('drop', (e) => { if (e.dataTransfer && e.dataTransfer.files) addFiles(e.dataTransfer.files); });
+
+  // Shrink big photos before upload so they go up fast over a cell signal.
+  async function prepare(file) {
+    const plain = { blob: file, type: file.type || 'application/octet-stream', name: file.name };
+    if (!/^image\/(jpeg|png|webp)$/.test(file.type) || file.size < 500 * 1024) return plain;
+    try {
+      const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
+      const s = Math.min(1, 2000 / Math.max(bmp.width, bmp.height));
+      const c = document.createElement('canvas');
+      c.width = Math.round(bmp.width * s); c.height = Math.round(bmp.height * s);
+      c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+      const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.85));
+      if (blob && blob.size < file.size) return { blob, type: 'image/jpeg', name: file.name.replace(/\.[^.]+$/, '') + '.jpg' };
+    } catch (e) { /* fall through and upload the original */ }
+    return plain;
+  }
+  const safeName = (n) => (n || 'file').replace(/[^A-Za-z0-9._-]+/g, '_').slice(-80);
+
+  // ---------- collect + validate ----------
+  function collect() {
+    const d = {};
+    form.querySelectorAll('[name]').forEach(el => {
+      if (el.type === 'file') return;
+      if (el.type === 'radio') { if (el.checked) d[el.name] = el.value; else if (!(el.name in d)) d[el.name] = ''; return; }
+      if (el.type === 'checkbox') { d[el.name] = el.checked; return; }
+      d[el.name] = (el.value || '').trim();
+    });
+    if (d.sameDriver) { d.driverName = d.reporterName; d.driverPhone = d.reporterPhone; }
+    if (d.partyType !== 'Other vehicle') ['opYear','opMake','opModel','opPlate','opPlateState','opVin','opInsurer','opPolicy','opOwner','opPassengerList','opDamage'].forEach(k => d[k] = '');
+    if (d.partyType !== 'Other vehicle') d.opPassengers = '0';
+    if (d.partyType === 'None') ['opName','opPhone','opLic','opDob','opAddress'].forEach(k => d[k] = '');
+    if (d.police !== 'Yes') ['officer','jurisdiction','badge','reportNo'].forEach(k => d[k] = '');
+    if (d.injuries !== 'Yes') d.injuryDetails = '';
+    return d;
+  }
+  function validate() {
+    let first = null;
+    form.querySelectorAll('[data-req]').forEach(el => {
+      const wrap = el.closest('.f');
+      if (el.closest('[hidden]')) { wrap && wrap.classList.remove('bad'); return; }
+      const ok = (el.value || '').trim() !== '';
+      wrap.classList.toggle('bad', !ok);
+      if (!ok && !first) first = wrap;
+    });
+    ['injuries', 'police', 'partyType'].forEach(n => {
+      const g = form.querySelector(`[data-group="${n}"]`);
+      const ok = !!radioVal(n);
+      g.classList.toggle('bad', !ok);
+      if (!ok && (!first || (g.compareDocumentPosition(first) & Node.DOCUMENT_POSITION_FOLLOWING))) first = g;
+    });
+    return first;
+  }
+
+  function makeId() {
+    const d = new Date();
+    const rnd = Math.random().toString(36).slice(2, 6).toUpperCase();
+    return `VA-${String(d.getFullYear()).slice(2)}${pad(d.getMonth()+1)}${pad(d.getDate())}-${rnd}`;
+  }
+
+  // ---------- notification email ----------
+  function pageUrl() { return location.origin + location.pathname; }
+  function reportLink(id) { return pageUrl() + '?report=' + encodeURIComponent(id); }
+  function mailHref(r) {
+    const veh = [r.year, r.make, r.model].filter(Boolean).join(' ');
+    const other = r.partyType === 'Other vehicle'
+      ? `${r.opName || 'Unknown driver'}, ${[r.opYear, r.opMake, r.opModel].filter(Boolean).join(' ') || 'vehicle not listed'}${r.opPlate ? ', plate ' + r.opPlate : ''}${r.opInsurer ? ', insured by ' + r.opInsurer : ''}`
+      : r.partyType === 'Pedestrian' ? `Pedestrian: ${r.opName || 'name not given'}` : 'None (single vehicle / fixed object)';
+    const lines = [
+      `VEHICLE ACCIDENT REPORT ${r.id}`,
+      ``,
+      `View the full report with photos (admin sign-in required):`,
+      reportLink(r.id),
+      ``,
+      `Filed by: ${r.reporterName} (${r.reporterPhone})`,
+      `Subdivision: ${r.subdivision}`,
+      `Supervisor: ${r.supervisor}`,
+      ``,
+      `Date / time: ${r.date} ${r.time}`,
+      `Location: ${r.location}${r.gps ? '  (GPS ' + r.gps + ')' : ''}`,
+      `Visibility: ${r.visibility}    Road: ${r.road}`,
+      `Injuries: ${r.injuries}${r.injuryDetails ? ' - ' + r.injuryDetails : ''}`,
+      `Police report: ${r.police}${r.police === 'Yes' ? ` - ${r.jurisdiction}, Officer ${r.officer} #${r.badge}, report #${r.reportNo}` : ''}`,
+      ...(r.policeNotes ? [`Police notes: ${r.policeNotes}`] : []),
+      ``,
+      `Our vehicle: ${r.unitNo ? 'Unit ' + r.unitNo + ', ' : ''}${veh}, plate ${r.plate}`,
+      `Driver: ${r.driverName}`,
+      `Other party: ${other}`,
+      ``,
+      `What happened:`,
+      r.description,
+      ``,
+      `Photos/files uploaded: ${r.fileCount}`,
+      `Photos, license and insurance details are in the full report at the link above.`,
+      ``,
+      `Metrolink deadline: 24 hours from the accident. Fax completed form to (323) 222-2471.`
+    ];
+    let body = lines.join('\n');
+    if (body.length > 1700) body = body.slice(0, 1700) + '\n…(see portal for the rest)';
+    const subj = `Vehicle Accident Report ${r.id} | ${r.subdivision} | ${r.reporterName}`;
+    return `mailto:${NOTIFY.join(',')}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(body)}`;
+  }
+
+  // ---------- submit ----------
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    $('formError').classList.remove('show');
+    const firstBad = validate();
+    if (firstBad) {
+      firstBad.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      toast('Some required fields are empty. They are marked in red.');
+      return;
+    }
+    const d = collect();
+    const id = makeId();
+    const btn = $('submitBtn');
+    btn.disabled = true; btn.textContent = 'Saving…';
+    const uploaded = [];
+    try {
+      for (let i = 0; i < pending.length; i++) {
+        $('progress').textContent = `Uploading file ${i + 1} of ${pending.length}…`;
+        const p = await prepare(pending[i].file);
+        if (p.blob.size > MAX_FILE_MB * 1024 * 1024) throw new Error(`${p.name} is larger than ${MAX_FILE_MB} MB.`);
+        const path = `${id}/${pad(i + 1)}-${safeName(p.name)}`;
+        const { error } = await sb.storage.from(BUCKET).upload(path, p.blob, { contentType: p.type, upsert: false });
+        if (error) throw new Error(`Upload failed for ${p.name}: ${error.message}`);
+        uploaded.push({ path, name: p.name, type: p.type, size: p.blob.size });
+      }
+      $('progress').textContent = 'Saving report…';
+      const report = Object.assign({}, d, {
+        id, submittedAt: new Date().toISOString(), fileCount: uploaded.length,
+        admin: { status: 'Open', notes: '', closedAt: null }
+      });
+      const { error } = await sb.from(TABLE).insert({ report, files: uploaded });
+      if (error) throw new Error(error.message);
+      showDone(report);
+    } catch (err) {
+      console.error(err);
+      const msg = String(err && err.message || err);
+      $('formError').innerHTML = `<b>The report was not saved.</b> ${esc(msg)}<br>Check your signal and tap Submit report again. Nothing you typed was lost.`;
+      $('formError').classList.add('show');
+      $('formError').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } finally {
+      btn.disabled = false; btn.textContent = 'Submit report'; $('progress').textContent = '';
+    }
+  });
+
+  function showDone(r) {
+    $('doneId').textContent = `Report ${r.id}`;
+    const href = mailHref(r);
+    $('mailBtn').href = href;
+    showView('done');
+    window.scrollTo(0, 0);
+    setTimeout(() => { window.location.href = href; }, 400);
+  }
+  $('againBtn').addEventListener('click', () => {
+    form.reset();
+    pending.forEach(p => p.preview && URL.revokeObjectURL(p.preview));
+    pending = []; renderFiles();
+    $('gpsVal').value = ''; $('gpsOut').textContent = "Use this if you're still at the scene.";
+    form.querySelectorAll('.bad').forEach(el => el.classList.remove('bad'));
+    setNow(); updateDeadline(); syncConditionals();
+    showView('file'); window.scrollTo(0, 0);
+  });
+
+  // ---------- views ----------
+  let current = 'file';
+  function showView(v) {
+    current = v;
+    $('fileView').hidden = v !== 'file';
+    $('doneView').hidden = v !== 'done';
+    $('adminView').hidden = v !== 'admin';
+    $('deadline').hidden = v === 'admin';
+    $('tabFile').setAttribute('aria-selected', String(v !== 'admin'));
+    $('tabAdmin').setAttribute('aria-selected', String(v === 'admin'));
+  }
+  $('tabFile').addEventListener('click', () => showView(current === 'done' ? 'done' : 'file'));
+  $('tabAdmin').addEventListener('click', () => { showView('admin'); openAdmin(); });
+
+  // ===================== ADMIN =====================
+  let rows = [];
+  let pendingReport = new URLSearchParams(location.search).get('report');
+  let viewingId = null;
+  let me = '';
+  let filt = { q: '', status: 'all' };
+  const A = $('adminView');
+
+  async function openAdmin() {
+    A.innerHTML = '<div class="panel">Checking sign-in…</div>';
+    let ok = false;
+    try { const { data } = await sb.auth.getSession(); ok = !!(data && data.session); } catch (e) {}
+    if (ok) checkAccess(); else renderLogin();
+  }
+
+  async function checkAccess() {
+    const { data, error } = await sb.rpc('is_report_admin', { p_form: 'accident' });
+    if (!error && data === true) {
+      try { const { data: u } = await sb.auth.getUser(); me = (u && u.user && u.user.email) || ''; } catch (e) {}
+      loadRows(); return;
+    }
+    await sb.auth.signOut();
+    renderLogin(error ? 'Could not check your access. Try again.' : 'This login does not have access to accident reports.');
+  }
+
+  function renderLogin(msg) {
+    A.innerHTML = `
+      <div class="panel" style="max-width:440px">
+        <h2>Admin sign-in</h2>
+        <p class="hint">${pendingReport ? `Sign in to view report ${esc(pendingReport)}.` : 'Sign in with your admin email and password.'}</p>
+        ${msg ? `<div class="banner bad show">${esc(msg)}</div>` : ''}
+        <label class="f"><span>Email</span><input type="email" id="aEmail" autocomplete="username"></label>
+        <label class="f"><span>Password</span><input type="password" id="aPass" autocomplete="current-password"></label>
+        <button class="btn primary" id="aGo" type="button">Sign in</button>
+      </div>`;
+    const go = async () => {
+      $('aGo').disabled = true;
+      const { error } = await sb.auth.signInWithPassword({ email: $('aEmail').value.trim(), password: $('aPass').value });
+      if (error) renderLogin('Incorrect email or password.'); else checkAccess();
+    };
+    $('aGo').onclick = go;
+    $('aPass').addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
+  }
+
+  async function loadRows() {
+    A.innerHTML = '<div class="panel">Loading reports…</div>';
+    const { data, error } = await sb.from(TABLE).select('id, created_at, report, files').order('created_at', { ascending: false });
+    if (error) { A.innerHTML = `<div class="panel"><div class="banner bad show">Could not load reports: ${esc(error.message)}</div><button class="btn" id="retry">Try again</button></div>`; $('retry').onclick = loadRows; return; }
+    rows = data || [];
+    if (pendingReport) {
+      const want = pendingReport; pendingReport = null;
+      const row = rows.find(r => r.report.id === want);
+      if (row) { openReportView(row); return; }
+      toast(`Report ${want} was not found. It may have been deleted.`, 5000);
+      history.replaceState(null, '', location.pathname);
+    }
+    renderAdmin();
+  }
+
+  const st = (r) => (r.report.admin && r.report.admin.status) || 'Open';
+
+  function renderAdmin() {
+    const total = rows.length;
+    const open = rows.filter(r => st(r) === 'Open').length;
+    const police = rows.filter(r => r.report.police === 'Yes').length;
+    const inj = rows.filter(r => r.report.injuries === 'Yes').length;
+    const q = filt.q.toLowerCase();
+    const list = rows.filter(r => {
+      if (filt.status !== 'all' && st(r) !== filt.status) return false;
+      if (!q) return true;
+      return JSON.stringify(r.report).toLowerCase().includes(q);
+    });
+    A.innerHTML = `
+      <div class="kpis">
+        <div class="kpi"><b>${total}</b><span>Total reports</span></div>
+        <div class="kpi"><b>${open}</b><span>Open</span></div>
+        <div class="kpi"><b>${inj}</b><span>With injuries</span></div>
+        <div class="kpi"><b>${police}</b><span>Police report taken</span></div>
+      </div>
+      <div class="panel">
+        <div class="tools">
+          <input type="text" id="q" placeholder="Search name, plate, location…" value="${esc(filt.q)}">
+          <select id="sf">
+            <option value="all"${filt.status==='all'?' selected':''}>All reports</option>
+            <option value="Open"${filt.status==='Open'?' selected':''}>Open only</option>
+            <option value="Closed"${filt.status==='Closed'?' selected':''}>Closed only</option>
+          </select>
+          <button class="btn" id="csv" type="button">Export CSV</button>
+          <button class="btn" id="out" type="button">Sign out</button>
+        </div>
+        <div class="tablewrap">
+        ${list.length ? `<table>
+          <thead><tr><th>Report</th><th>Accident</th><th>Subdivision</th><th>Driver</th><th>Our vehicle</th><th>Other party</th><th>Files</th><th>Status</th></tr></thead>
+          <tbody>${list.map(r => { const x = r.report; return `
+            <tr data-id="${r.id}">
+              <td>${esc(x.id)}</td>
+              <td>${esc(x.date)} ${esc(x.time)}</td>
+              <td>${esc(x.subdivision)}</td>
+              <td>${esc(x.driverName)}</td>
+              <td>${esc([x.unitNo && ('Unit ' + x.unitNo), x.plate].filter(Boolean).join(', '))}</td>
+              <td>${esc(x.partyType === 'None' ? 'None' : (x.opName || x.partyType))}</td>
+              <td>${(r.files || []).length}</td>
+              <td><span class="badge ${st(r) === 'Open' ? 'open' : 'closed'}">${st(r)}</span>${x.lastEditedAt ? ' <span class="badge closed">Edited</span>' : ''}</td>
+            </tr>`; }).join('')}</tbody></table>`
+        : `<div class="empty">${total ? 'No reports match this search.' : 'No accident reports yet. New reports show up here as soon as they are submitted.'}</div>`}
+        </div>
+      </div>`;
+    const qi = $('q');
+    qi.oninput = () => { filt.q = qi.value; const pos = qi.selectionStart; renderAdmin(); const n = $('q'); n.focus(); n.setSelectionRange(pos, pos); };
+    $('sf').onchange = (e) => { filt.status = e.target.value; renderAdmin(); };
+    $('csv').onclick = exportCSV;
+    $('out').onclick = async () => { await sb.auth.signOut(); renderLogin(); };
+    A.querySelectorAll('tbody tr').forEach(tr => tr.onclick = () => { const row = rows.find(r => r.id === Number(tr.getAttribute('data-id'))); if (row) openReportView(row); });
+  }
+
+  // ----- detail -----
+  const SECTIONS = [
+    ['Reporter', [['reporterName','Name'],['reporterPhone','Phone'],['subdivision','Subdivision'],['supervisor','Supervisor']]],
+    ['Accident', [['date','Date'],['time','Time'],['visibility','Visibility'],['road','Road surface'],['location','Location'],['gps','GPS'],['description','What happened'],['injuries','Injuries'],['injuryDetails','Injury details']]],
+    ['Police report', [['police','Report taken'],['officer','Officer'],['jurisdiction','Jurisdiction'],['badge','Badge no.'],['reportNo','Report no.'],['policeNotes','Police notes']]],
+    ['Our vehicle', [['driverName','Driver'],['driverPhone','Driver phone'],['driverLic','Driver license no.'],['driverDob','Driver DOB'],['unitNo','Unit / fleet no.'],['year','Year'],['make','Make'],['model','Model'],['plate','Plate'],['vin','VIN'],['odometer','Odometer'],['ourDamage','Damage'],['passengers','Passengers'],['passengerList','Passenger names / addresses']]],
+    ['Other party', [['partyType','Type'],['opName','Name'],['opPhone','Phone'],['opLic','License no. / state'],['opDob','DOB'],['opAddress','Address'],['opYear','Year'],['opMake','Make'],['opModel','Model'],['opPlate','Plate'],['opPlateState','Plate state'],['opVin','VIN'],['opInsurer','Insured by'],['opPolicy','Policy no.'],['opOwner','Owner'],['opPassengers','Passengers'],['opPassengerList','Passenger names / addresses'],['opDamage','Damage']]],
+    ['Witnesses', [['witnesses','Witnesses']]]
+  ];
+
+  const shown = (r, k) => r[k] !== '' && r[k] != null && typeof r[k] !== 'boolean' && !((k === 'passengers' || k === 'opPassengers') && r[k] === '0');
+  const WIDE = new Set(['location', 'description', 'injuryDetails', 'policeNotes', 'ourDamage', 'passengerList', 'opAddress', 'opOwner', 'opPassengerList', 'opDamage', 'witnesses']);
+  const isImg = (f) => /^image\/(jpeg|png|webp|gif)$/.test(f.type || '');
+
+  async function fileUrls(row) {
+    const files = row.files || [];
+    if (!files.length) return [];
+    const { data, error } = await sb.storage.from(BUCKET).createSignedUrls(files.map(f => f.path), 3600);
+    if (error) throw error;
+    return files.map((f, i) => Object.assign({}, f, { url: data[i] && data[i].signedUrl }));
+  }
+
+  function fmtWhen(r) {
+    const d = new Date(`${r.date}T${r.time || '00:00'}`);
+    return isNaN(d) ? `${r.date} ${r.time}` : d.toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+  }
+
+  function reportSheet(row, files) {
+    const r = row.report, adm = r.admin || { status: 'Open' };
+    const secs = SECTIONS.map(([title, fields]) => {
+      const items = fields.filter(([k]) => shown(r, k));
+      if (!items.length) return '';
+      return `<h3>${title}</h3><dl class="rv-grid">${items.map(([k, l]) =>
+        `<div class="rv-item${WIDE.has(k) ? ' wide' : ''}"><dt>${l}</dt><dd>${esc(r[k])}</dd></div>`).join('')}</dl>`;
+    }).join('');
+    const pics = files.filter(f => isImg(f) && f.url);
+    const others = files.filter(f => !(isImg(f) && f.url));
+    const police = r.police === 'Yes' ? `Yes${r.reportNo ? ', #' + r.reportNo : ''}` : 'No';
+    return `
+      <article class="rv">
+        <header class="rv-head">
+          <div><h2>Vehicle Accident Report</h2><div class="id">${esc(r.id)}</div></div>
+          <div class="rv-meta">Submitted ${esc(new Date(row.created_at).toLocaleString())}<br>Status: <b>${esc(adm.status || 'Open')}</b>${r.lastEditedAt ? `<br><span class="rv-edited">Edited ${esc(fmtTs(r.lastEditedAt))}${r.lastEditedBy ? ' by ' + esc(r.lastEditedBy) : ''}</span>` : ''}</div>
+        </header>
+        <div class="rv-sum">
+          <div><small>Accident</small><b>${esc(fmtWhen(r))}</b></div>
+          <div><small>Subdivision</small><b>${esc(r.subdivision)}</b></div>
+          <div><small>Injuries</small><b class="${r.injuries === 'Yes' ? 'warn' : ''}">${esc(r.injuries)}</b></div>
+          <div><small>Police report</small><b>${esc(police)}</b></div>
+        </div>
+        <div class="rv-body">
+          ${secs}
+          ${adm.notes ? `<h3>Admin notes</h3><dl class="rv-grid"><div class="rv-item wide"><dt>Notes</dt><dd>${esc(adm.notes)}</dd></div></dl>` : ''}
+          <h3>Photos and files (${files.length})</h3>
+          ${files.length ? '' : '<p class="hint">No photos or files were uploaded.</p>'}
+          ${pics.length ? `<div class="rv-photos">${pics.map((f, i) => `<figure><img src="${f.url}" alt="Photo ${i + 1}"><figcaption>Photo ${i + 1}: ${esc(f.name)}</figcaption></figure>`).join('')}</div>` : ''}
+          ${others.length ? `<ul class="rv-files">${others.map(f => `<li>${f.url ? `<a href="${f.url}" target="_blank" rel="noopener">${esc(f.name)}</a>` : esc(f.name)}</li>`).join('')}</ul>` : ''}
+          ${historyHtml(r)}
+        </div>
+        <footer class="rv-foot"><span>Report ${esc(r.id)}</span><span>Printed ${esc(new Date().toLocaleString())}</span></footer>
+      </article>`;
+  }
+
+  async function openReportView(row) {
+    viewingId = row.id;
+    A.innerHTML = '<div class="panel">Loading report…</div>';
+    let files;
+    try { files = await fileUrls(row); }
+    catch (e) { toast('Could not load photos: ' + e.message, 5000); files = (row.files || []).map(f => Object.assign({}, f, { url: null })); }
+    if (viewingId !== row.id) return;
+    const sheet = reportSheet(row, files);
+    A.innerHTML = `
+      <div class="tools">
+        <button class="btn" id="rvBack" type="button">All reports</button>
+        <button class="btn" id="rvPrint" type="button">Print / save as PDF</button>
+        ${st(row) === 'Open' ? '<button class="btn primary" id="rvEdit" type="button">Edit report</button>' : '<button class="btn" type="button" disabled title="Reopen the report to edit it">Edit (reopen first)</button>'}
+        <button class="btn" id="rvManage" type="button">Notes, status, Metrolink form</button>
+        <button class="btn" id="rvLink" type="button">Copy link</button>
+      </div>${sheet}`;
+    window.scrollTo(0, 0);
+    $('rvBack').onclick = () => { viewingId = null; history.replaceState(null, '', location.pathname); renderAdmin(); window.scrollTo(0, 0); };
+    $('rvPrint').onclick = () => printSheet(sheet);
+    $('rvManage').onclick = () => openDetail(row.id);
+    if ($('rvEdit')) $('rvEdit').onclick = () => openEdit(row);
+    $('rvLink').onclick = async () => {
+      try { await navigator.clipboard.writeText(reportLink(row.report.id)); toast('Link copied.'); }
+      catch (e) { prompt('Copy this link:', reportLink(row.report.id)); }
+    };
+  }
+
+  function fmtTs(iso) {
+    const d = new Date(iso);
+    return isNaN(d) ? String(iso || '') : d.toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+  }
+
+  function historyHtml(r) {
+    const h = r.history || [];
+    if (!h.length) return '';
+    const val = (v, empty) => v ? v : `<span class="hint">${empty}</span>`;
+    return `<h3>Change history (${h.length})</h3>
+      <ol class="rv-hist">${h.slice().reverse().map(e => `
+        <li>
+          <div class="rv-hist-head"><b>${esc(fmtTs(e.at))}</b>${e.by ? ' by ' + esc(e.by) : ''}</div>
+          ${e.note ? `<div class="rv-hist-note">${esc(e.note)}</div>` : ''}
+          ${(e.changes || []).length ? `<table class="rv-chg"><tbody>${e.changes.map(c => `
+            <tr><td>${esc(c.label)}</td>
+                <td>${val(c.from ? `<del>${esc(c.from)}</del>` : '', '(was blank)')}</td>
+                <td>${val(c.to ? `<ins>${esc(c.to)}</ins>` : '', '(removed)')}</td></tr>`).join('')}</tbody></table>` : ''}
+          ${(e.filesAdded || []).length ? `<div>Files added: <ins>${e.filesAdded.map(esc).join(', ')}</ins></div>` : ''}
+          ${(e.filesRemoved || []).length ? `<div>Files removed: <del>${e.filesRemoved.map(esc).join(', ')}</del></div>` : ''}
+        </li>`).join('')}
+      </ol>`;
+  }
+
+  // ----- edit an open report (track changes) -----
+  const EDIT_OPTS = { subdivision: SUBDIVISIONS, visibility: VISIBILITY, road: ROAD, injuries: ['No', 'Yes'], police: ['Yes', 'No'], partyType: ['Other vehicle', 'Pedestrian', 'None'] };
+  const EDIT_DATES = new Set(['date', 'driverDob', 'opDob']);
+  const EDIT_REQ = new Set(['date', 'time', 'location', 'subdivision', 'description', 'injuries', 'police', 'partyType']);
+  let editAdds = [], editRemoves = new Set(), editFiles = [], editKey = 0;
+
+  function editInput(k, v) {
+    const val = v == null ? '' : String(v);
+    if (EDIT_OPTS[k]) {
+      const list = (!val || EDIT_OPTS[k].includes(val)) ? EDIT_OPTS[k] : [val].concat(EDIT_OPTS[k]);
+      return `<select data-k="${k}"><option value="">Choose…</option>${list.map(o => `<option${o === val ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select>`;
+    }
+    if (WIDE.has(k)) return `<textarea data-k="${k}" rows="3">${esc(val)}</textarea>`;
+    if (EDIT_DATES.has(k)) return `<input type="date" data-k="${k}" value="${esc(val)}">`;
+    if (k === 'time') return `<input type="time" data-k="${k}" value="${esc(val)}">`;
+    return `<input type="text" data-k="${k}" value="${esc(val)}">`;
+  }
+
+  function renderEditFiles() {
+    const ex = $('edFiles'), nw = $('edNew');
+    if (!ex) return;
+    ex.innerHTML = editFiles.length ? editFiles.map(f => {
+      const rm = editRemoves.has(f.path);
+      return `<div class="file${rm ? ' removing' : ''}">
+        <div class="thumb">${isImg(f) && f.url ? `<img src="${f.url}" alt="">` : esc(extOf(f.name))}</div>
+        <div class="nm">${esc(f.name)}</div>
+        ${rm ? '<span class="tag">Will be removed</span>' : ''}
+        <button type="button" data-ex="${esc(f.path)}" aria-label="${rm ? 'Keep' : 'Remove'} ${esc(f.name)}">${rm ? '↺' : '×'}</button>
+      </div>`;
+    }).join('') : '<p class="hint">No files on this report yet.</p>';
+    nw.innerHTML = editAdds.map(p => `
+      <div class="file">
+        <div class="thumb">${p.preview ? `<img src="${p.preview}" alt="">` : esc(extOf(p.file.name))}</div>
+        <div class="nm">${esc(p.file.name)}</div>
+        <span class="tag new">New</span>
+        <button type="button" data-new="${p.key}" aria-label="Remove ${esc(p.file.name)}">×</button>
+      </div>`).join('');
+  }
+
+  async function openEdit(row) {
+    if (st(row) !== 'Open') { toast('Reopen the report before editing it.'); return; }
+    viewingId = row.id;
+    editAdds.forEach(p => p.preview && URL.revokeObjectURL(p.preview));
+    editAdds = []; editRemoves = new Set(); editFiles = (row.files || []).map(f => Object.assign({}, f, { url: null }));
+    const r = row.report;
+    A.innerHTML = `
+      <div class="tools"><button class="btn" id="edCancel" type="button">Cancel</button></div>
+      <div class="panel">
+        <h2>Edit report ${esc(r.id)}</h2>
+        <p class="hint" style="margin:0">Your changes are saved with a time stamp and your name. The old values stay visible in the change history at the bottom of the report.</p>
+      </div>
+      <form id="edForm" novalidate>
+        ${SECTIONS.map(([title, fields]) => `
+          <fieldset><legend>${title}</legend><div class="grid">
+            ${fields.map(([k, l]) => `<label class="f${WIDE.has(k) ? ' full' : ''}"><span>${l}${EDIT_REQ.has(k) ? '<i>*</i>' : ''}</span>${editInput(k, r[k])}<div class="err">This can't be blank.</div></label>`).join('')}
+          </div></fieldset>`).join('')}
+        <fieldset><legend>Photos and files</legend>
+          <p class="hint">Tap × to mark a file for removal (tap ↺ to keep it). Removed files are deleted when you save.</p>
+          <div class="files" id="edFiles"></div>
+          <label class="drop"><b>Add photos or files</b><small>Up to ${MAX_FILE_MB} MB each.</small>
+            <input type="file" id="edInput" multiple accept="image/*,video/*,.pdf,.doc,.docx,.heic,.heif"></label>
+          <div class="files" id="edNew"></div>
+        </fieldset>
+        <fieldset><legend>Reason for change</legend>
+          <label class="f"><span>What changed and why<i>*</i></span><textarea id="edNote" rows="3" placeholder="e.g. Added police report number received from CHP on 10/29"></textarea><div class="err">Add a short reason for the change.</div></label>
+        </fieldset>
+        <button class="btn big go" id="edSave" type="button">Save changes</button>
+        <div class="progress" id="edProg" aria-live="polite"></div>
+      </form>`;
+    window.scrollTo(0, 0);
+    renderEditFiles();
+    fileUrls(row).then(list => { editFiles = list; renderEditFiles(); }).catch(() => {});
+
+    $('edCancel').onclick = () => openReportView(row);
+    $('edFiles').onclick = (e) => {
+      const b = e.target.closest('[data-ex]'); if (!b) return;
+      const path = b.getAttribute('data-ex');
+      editRemoves.has(path) ? editRemoves.delete(path) : editRemoves.add(path);
+      renderEditFiles();
+    };
+    $('edNew').onclick = (e) => {
+      const b = e.target.closest('[data-new]'); if (!b) return;
+      const i = editAdds.findIndex(p => String(p.key) === b.getAttribute('data-new'));
+      if (i > -1) { if (editAdds[i].preview) URL.revokeObjectURL(editAdds[i].preview); editAdds.splice(i, 1); renderEditFiles(); }
+    };
+    $('edInput').onchange = (e) => {
+      for (const f of e.target.files) {
+        if (f.size > MAX_FILE_MB * 1024 * 1024 && !/^image\/(jpeg|png|webp)$/.test(f.type)) { toast(`${f.name} is over ${MAX_FILE_MB} MB.`, 5000); continue; }
+        editAdds.push({ key: ++editKey, file: f, preview: /^image\/(jpeg|png|webp|gif)$/.test(f.type) ? URL.createObjectURL(f) : null });
+      }
+      e.target.value = '';
+      renderEditFiles();
+    };
+    $('edForm').addEventListener('input', (e) => { const f = e.target.closest('.f'); if (f) f.classList.remove('bad'); });
+    $('edSave').onclick = () => saveEdit(row);
+  }
+
+  async function saveEdit(row) {
+    const form = $('edForm');
+    let bad = null;
+    form.querySelectorAll('[data-k]').forEach(el => {
+      const isBad = EDIT_REQ.has(el.dataset.k) && !el.value.trim();
+      el.closest('.f').classList.toggle('bad', isBad);
+      if (isBad && !bad) bad = el.closest('.f');
+    });
+    const note = $('edNote').value.trim();
+    $('edNote').closest('.f').classList.toggle('bad', !note);
+    if (!note && !bad) bad = $('edNote').closest('.f');
+    if (bad) { bad.scrollIntoView({ behavior: 'smooth', block: 'center' }); toast('Fill in the fields marked in red.'); return; }
+
+    const r = row.report;
+    const labels = Object.fromEntries([].concat(...SECTIONS.map(s => s[1])));
+    const next = Object.assign({}, r);
+    const changes = [];
+    form.querySelectorAll('[data-k]').forEach(el => {
+      const k = el.dataset.k, v = el.value.trim(), old = r[k] == null ? '' : String(r[k]);
+      if (v !== old) { changes.push({ field: k, label: labels[k] || k, from: old, to: v }); next[k] = v; }
+    });
+    if (!changes.length && !editAdds.length && !editRemoves.size) { toast('Nothing was changed.'); return; }
+
+    const btn = $('edSave');
+    btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      const added = [];
+      const stamp = Date.now();
+      for (let i = 0; i < editAdds.length; i++) {
+        $('edProg').textContent = `Uploading file ${i + 1} of ${editAdds.length}…`;
+        const p = await prepare(editAdds[i].file);
+        const path = `${r.id}/e${stamp}-${pad(i + 1)}-${safeName(p.name)}`;
+        const { error } = await sb.storage.from(BUCKET).upload(path, p.blob, { contentType: p.type, upsert: false });
+        if (error) throw new Error(`Upload failed for ${p.name}: ${error.message}`);
+        added.push({ path, name: p.name, type: p.type, size: p.blob.size });
+      }
+      $('edProg').textContent = 'Saving changes…';
+      const removed = (row.files || []).filter(f => editRemoves.has(f.path));
+      const files = (row.files || []).filter(f => !editRemoves.has(f.path)).concat(added);
+      const now = new Date().toISOString();
+      next.history = (r.history || []).concat([{ at: now, by: me, note, changes, filesAdded: added.map(f => f.name), filesRemoved: removed.map(f => f.name) }]);
+      next.lastEditedAt = now; next.lastEditedBy = me; next.fileCount = files.length;
+      const { error } = await sb.from(TABLE).update({ report: next, files }).eq('id', row.id);
+      if (error) throw new Error(error.message);
+      if (removed.length) {
+        const { error: re } = await sb.storage.from(BUCKET).remove(removed.map(f => f.path));
+        if (re) console.warn('File cleanup failed', re);
+      }
+      row.report = next; row.files = files;
+      editAdds.forEach(p => p.preview && URL.revokeObjectURL(p.preview));
+      editAdds = []; editRemoves = new Set();
+      toast('Changes saved.');
+      openReportView(row);
+    } catch (e) {
+      toast('Not saved: ' + (e.message || e), 6000);
+      btn.disabled = false; btn.textContent = 'Save changes'; $('edProg').textContent = '';
+    }
+  }
+
+  async function printSheet(html) {
+    const pa = $('printArea');
+    pa.innerHTML = html;
+    await Promise.all([...pa.querySelectorAll('img')].map(img => img.complete ? 0 : new Promise(res => { img.onload = img.onerror = res; })));
+    window.print();
+  }
+
+  function closeModal() { $('modalBg').style.display = 'none'; $('modal').innerHTML = ''; document.body.style.overflow = ''; }
+  $('modalBg').addEventListener('click', (e) => { if (e.target === $('modalBg')) closeModal(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('modalBg').style.display === 'flex') closeModal(); });
+
+  async function openDetail(rowId) {
+    const row = rows.find(r => r.id === rowId); if (!row) return;
+    const r = row.report, adm = r.admin || { status: 'Open', notes: '' };
+    const sec = SECTIONS.map(([title, fields]) => {
+      const items = fields.filter(([k]) => shown(r, k));
+      if (!items.length) return '';
+      return `<h4>${title}</h4><dl class="dl">${items.map(([k, l]) => `<dt>${l}</dt><dd>${esc(r[k])}</dd>`).join('')}</dl>`;
+    }).join('');
+    $('modal').innerHTML = `
+      <div class="mhead">
+        <div><h3>${esc(r.id)}</h3><div class="hint" style="margin:2px 0 0">Submitted ${esc(new Date(row.created_at).toLocaleString())} <span class="badge ${adm.status === 'Open' ? 'open' : 'closed'}">${esc(adm.status)}</span></div></div>
+        <button class="x" id="mx" aria-label="Close">×</button>
+      </div>
+      ${sec}
+      <h4>Photos and files (${(row.files || []).length})</h4>
+      <div class="gallery" id="gal">${(row.files || []).length ? 'Loading files…' : '<span class="hint">No files attached.</span>'}</div>
+      <h4>Notes and resolution</h4>
+      <textarea id="notes" rows="4">${esc(adm.notes || '')}</textarea>
+      ${adm.closedAt ? `<p class="hint">Closed ${esc(new Date(adm.closedAt).toLocaleString())}</p>` : ''}
+      <div class="row" style="margin-top:12px">
+        <button class="btn" id="saveNote" type="button">Save note</button>
+        <button class="btn primary" id="toggle" type="button">${adm.status === 'Open' ? 'Close report' : 'Reopen report'}</button>
+        <button class="btn" id="print" type="button">Print Metrolink form</button>
+        <a class="btn" href="${mailHref(r)}">Re-send email</a>
+        <button class="btn danger" id="del" type="button">Delete report</button>
+      </div>`;
+    $('modalBg').style.display = 'flex'; document.body.style.overflow = 'hidden';
+    $('mx').onclick = closeModal;
+    $('saveNote').onclick = () => saveAdmin(row, { notes: $('notes').value }, 'Note saved.');
+    $('toggle').onclick = () => {
+      const closing = adm.status === 'Open';
+      saveAdmin(row, { notes: $('notes').value, status: closing ? 'Closed' : 'Open', closedAt: closing ? new Date().toISOString() : null }, closing ? 'Report closed.' : 'Report reopened.', true);
+    };
+    $('print').onclick = () => printForm(row);
+    $('del').onclick = () => deleteRow(row);
+
+    if ((row.files || []).length) {
+      const { data, error } = await sb.storage.from(BUCKET).createSignedUrls(row.files.map(f => f.path), 3600);
+      const gal = $('gal'); if (!gal) return;
+      if (error) { gal.innerHTML = `<span class="hint">Could not load files: ${esc(error.message)}</span>`; return; }
+      gal.innerHTML = row.files.map((f, i) => {
+        const url = data[i] && data[i].signedUrl;
+        if (!url) return `<a><div class="doc">?</div><span>${esc(f.name)}</span></a>`;
+        const isImg = /^image\/(jpeg|png|webp|gif)$/.test(f.type);
+        return `<a href="${url}" target="_blank" rel="noopener">${isImg ? `<img src="${url}" alt="${esc(f.name)}">` : `<div class="doc">${esc(extOf(f.name))}</div>`}<span>${esc(f.name)}</span></a>`;
+      }).join('');
+    }
+  }
+
+  async function saveAdmin(row, patch, okMsg, reopen) {
+    const report = Object.assign({}, row.report, { admin: Object.assign({ status: 'Open', notes: '', closedAt: null }, row.report.admin || {}, patch) });
+    if (patch.status && patch.status !== st(row)) {
+      report.history = (row.report.history || []).concat([{ at: new Date().toISOString(), by: me, note: patch.status === 'Closed' ? 'Report closed' : 'Report reopened', changes: [] }]);
+    }
+    const { error } = await sb.from(TABLE).update({ report }).eq('id', row.id);
+    if (error) { toast('Not saved: ' + error.message, 5000); return; }
+    row.report = report; toast(okMsg);
+    if (viewingId === row.id) { await openReportView(row); } else renderAdmin();
+    if (reopen) openDetail(row.id);
+  }
+
+  async function deleteRow(row) {
+    if (!confirm(`Delete ${row.report.id} and its ${(row.files || []).length} file(s) for everyone? This cannot be undone.`)) return;
+    if ((row.files || []).length) {
+      const { error: fe } = await sb.storage.from(BUCKET).remove(row.files.map(f => f.path));
+      if (fe) { toast('Files not deleted: ' + fe.message, 5000); return; }
+    }
+    const { error } = await sb.from(TABLE).delete().eq('id', row.id);
+    if (error) { toast('Not deleted: ' + error.message, 5000); return; }
+    rows = rows.filter(r => r.id !== row.id);
+    closeModal(); viewingId = null; history.replaceState(null, '', location.pathname); renderAdmin(); toast('Report deleted.');
+  }
+
+  // ----- print in Metrolink form layout -----
+  function printForm(row) {
+    const r = row.report;
+    const c = (label, v, cls) => `<div class="${cls || ''}"><small>${label}</small>${esc(v || '')}</div>`;
+    $('printArea').innerHTML = `
+      <div class="p-head">
+        <div><h1>Vehicle Accident Report</h1><div>Southern California Regional Rail Authority (Metrolink)</div></div>
+        <div style="text-align:right">1555 San Fernando Rd., L.A., CA 90065<br>1-800-947-8884<br>Fax completed form to: (323) 222-2471</div>
+      </div>
+      <div class="p-sec">Description of accident</div>
+      <div class="p-grid">
+        ${c('Date:', r.date)}${c('Time:', r.time)}${c('Visibility:', r.visibility)}
+        ${c('Road surface condition:', r.road, 'w3')}
+        ${c('Location:', r.location + (r.gps ? '  (GPS ' + r.gps + ')' : ''), 'w3')}
+        ${c('Description:', r.description, 'w3')}
+        ${r.injuries === 'Yes' ? c('Injuries:', r.injuryDetails, 'w3') : ''}
+        ${c('Police report taken:', r.police)}${c('Name of officer:', r.officer, 'w2')}
+        ${c('Jurisdictional area:', r.jurisdiction)}${c('Badge no.:', r.badge)}${c('Report no.:', r.reportNo)}
+        ${r.policeNotes ? c('Police notes:', r.policeNotes, 'w3') : ''}
+      </div>
+      <div class="p-sec">Your vehicle</div>
+      <div class="p-grid">
+        ${c("Driver's name:", r.driverName, 'w2')}${c('Phone no.:', r.driverPhone)}
+        ${c("Driver's lic. no.:", r.driverLic, 'w2')}${c('D.O.B.:', r.driverDob)}
+        ${c('Make:', r.make)}${c('Model:', r.model)}${c('Year:', r.year)}
+        ${c('License plate no.:', r.plate)}${c('VIN:', r.vin, 'w2')}
+        ${c('Odometer reading:', r.odometer)}${c('No. of passengers:', r.passengers)}${c('Unit no.:', r.unitNo)}
+        ${c('Name and address of passengers:', r.passengerList, 'w3')}
+      </div>
+      <div class="p-sec">Other vehicle / or pedestrian${r.partyType === 'None' ? ' (none involved)' : r.partyType === 'Pedestrian' ? ' (pedestrian)' : ''}</div>
+      <div class="p-grid">
+        ${c("Driver's name:", r.opName, 'w2')}${c('Phone no.:', r.opPhone)}
+        ${c("Driver's lic. no. / state:", r.opLic, 'w2')}${c('D.O.B.:', r.opDob)}
+        ${c("Driver's address:", r.opAddress, 'w3')}
+        ${c('Make:', r.opMake)}${c('Model:', r.opModel)}${c('Year:', r.opYear)}
+        ${c('License plate no.:', r.opPlate)}${c('State issuing:', r.opPlateState)}${c('VIN:', r.opVin)}
+        ${c('Insured by:', r.opInsurer, 'w2')}${c('Policy no.:', r.opPolicy)}
+        ${c('Owner of vehicle name/address:', r.opOwner, 'w3')}
+        ${c('No. of passengers in vehicle:', r.opPassengers)}${c('Name & address of passengers:', r.opPassengerList, 'w2')}
+      </div>
+      ${r.witnesses ? `<div class="p-sec">Witnesses</div><div class="p-grid">${c('', r.witnesses, 'w3')}</div>` : ''}`;
+    window.print();
+  }
+
+  // ----- CSV -----
+  function exportCSV() {
+    const keys = [['id','Report ID'],['submittedAt','Submitted']].concat(...SECTIONS.map(s => s[1]));
+    const q = (v) => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+    const head = keys.map(k => k[1]).concat(['Files', 'Status', 'Notes', 'Closed', 'Last edited', 'Last edited by', 'Number of edits']);
+    const lines = rows.map(row => {
+      const r = row.report, a = r.admin || {};
+      return keys.map(([k]) => q(r[k])).concat([q((row.files || []).length), q(a.status || 'Open'), q(a.notes), q(a.closedAt), q(r.lastEditedAt), q(r.lastEditedBy), q((r.history || []).filter(h => (h.changes || []).length || (h.filesAdded || []).length || (h.filesRemoved || []).length).length)]).join(',');
+    });
+    const blob = new Blob(['\ufeff' + head.map(q).join(',') + '\n' + lines.join('\n')], { type: 'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = 'vehicle_accident_reports.csv'; a.click();
+  }
+
+  // Opened from the link in a notification email: go straight to that report
+  if (pendingReport) { showView('admin'); openAdmin(); }
+})();
+</script>
+</body>
+</html>
